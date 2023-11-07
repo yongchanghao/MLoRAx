@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you find this software useful, please cite it as below."
+authors:
+  - family-names: "Yongchang"
+    given-names: "Hao"
+title: "MLoRAx: a minimalist library for low-rank adaptation for Transformer-based models"
+version: 0.9.0
+date-released: 2023-11-07
+url: "https://github.com/yongchanghao/MLoRAx"
