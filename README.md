@@ -28,12 +28,12 @@ It is extremely easy to use `mlorax` to convert any Flax model to a LoRA model. 
 
 ```diff
 + import mlorax
-model = FlaxT5ForConditionalGeneration.from_pretrained('t5-small')
+  model = FlaxT5ForConditionalGeneration.from_pretrained('t5-small')
 - params = model.params
 - apply_fn = model.__call__
 + lora_spec = mlorax.LoRASpec(rank=16, rules=['Attention.q', 'Attention.v'])
 + params, apply_fn, merge_fn = mlorax.lora_init(lora_spec, model)
-state = TrainState(apply_fn=apply_fn, params=params, tx=tx, **kwargs)
+  state = TrainState(apply_fn=apply_fn, params=params, tx=tx, **kwargs)
 ```
 
 That's it! You can now train the model as usual.
@@ -49,7 +49,7 @@ Always use the **returned** `apply_fn` for model forwarding if possible. Otherwi
 
 ## Example and Results
 
-Under construction.
+Please refer to the [examples](https://github.com/yongchanghao/MLoRAx/tree/main/examples) folder for more examples and results.
 
 ## Citation
 
@@ -61,6 +61,6 @@ If you find MLoRAx useful, please cite the following paper:
   title = {{ML}o{RA}x: a minimalist library for low-rank adaptation for {T}ransformer-based models},
   year = {2023},
   url = {https://github.com/yongchanghao/MLoRAx},
-  version = {0.9.0}
+  version = {0.9.1}
 }
 ```

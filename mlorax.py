@@ -41,6 +41,7 @@ class LoRASpec:
     alpha: Optional[float] = None  # default to rank
     tune_vectors: bool = False
     seed: int = 0
+    disabled: bool = False
 
 
 def decision_fn(
@@ -83,6 +84,7 @@ def lora_merge(
     trainable = flax.traverse_util.flatten_dict(trainable, sep=PATH_SEP)
     full_params = {}
     full_params.update(freezed)
+    alpha = lora_spec.alpha if lora_spec.alpha is not None else lora_spec.rank
 
     trainable_paths = set()
     for path in trainable:
@@ -97,7 +99,7 @@ def lora_merge(
         a = trainable[f"{path}{LORA_A_SUFFIX}"]
         b = trainable[f"{path}{LORA_B_SUFFIX}"]
         rank = a.shape[1]
-        full_params[path] = jnp.matmul(a, b) * lora_spec.alpha / rank + freezed[path]
+        full_params[path] = jnp.matmul(a, b) * alpha / rank + freezed[path]
 
     return flax.traverse_util.unflatten_dict(full_params, sep=PATH_SEP)
 
@@ -119,14 +121,18 @@ def lora_init(
     if apply_fn is None:
         apply_fn = model.__call__
 
-    rules = lora_spec.rules
+    if lora_spec.disabled:
+        return params, apply_fn, lambda params: params
+
     rank = lora_spec.rank
     rng = jax.random.PRNGKey(lora_spec.seed)
 
     trainable = {}
     freezed = {}
-    for path, weight in flax.traverse_util.flatten_dict(params, sep=PATH_SEP).items():
-        weight_state = decision_fn(lora_spec, rules, path, weight)
+    for path, weight in flax.traverse_util.flatten_dict(
+        params, sep=PATH_SEP
+    ).items():
+        weight_state = decision_fn(lora_spec, path, weight)
         if weight_state == WeightState.FULL:
             trainable[path] = weight
         elif weight_state == WeightState.FREEZED:
@@ -135,7 +141,9 @@ def lora_init(
             trainable[f"{path}{LORA_A_SUFFIX}"] = jax.random.normal(
                 rng, (weight.shape[0], rank), dtype=weight.dtype
             ) / jnp.sqrt(weight.shape[0] / 2)
-            trainable[f"{path}{LORA_B_SUFFIX}"] = jnp.zeros((rank, weight.shape[1]), dtype=weight.dtype)
+            trainable[f"{path}{LORA_B_SUFFIX}"] = jnp.zeros(
+                (rank, weight.shape[1]), dtype=weight.dtype
+            )
             freezed[path] = weight
             rng = jax.random.split(rng)[0]
         else:
@@ -145,12 +153,16 @@ def lora_init(
 
     def wrapped_apply_fn(params, *args, **kwargs):
         return apply_fn(
-            params=lora_merge(lora_spec=lora_spec, trainable=params, freezed=freezed),
+            params=lora_merge(
+                lora_spec=lora_spec, trainable=params, freezed=freezed
+            ),
             *args,
             **kwargs,
         )
 
     def wrapped_merge_fn(params):
-        return lora_merge(lora_spec=lora_spec, trainable=params, freezed=freezed)
+        return lora_merge(
+            lora_spec=lora_spec, trainable=params, freezed=freezed
+        )
 
     return trainable, wrapped_apply_fn, wrapped_merge_fn
