@@ -1,0 +1,13 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch  # for transformers, we do not really use it
+flax
+optax
+mlorax
+datasets
+transformers
+tensorboard
+nltk  
+hydra-core
+evaluate
+rouge_score
+tensorflow

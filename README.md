@@ -1,16 +1,16 @@
 ## Installation
 
-### Choice 1: Just copy the code
+### Choice 1: Install with pip
 
-You can just copy the code from `mlorax.py` and paste it into your project. This is the easiest way to use `mlorax` if you do not care about future updates.
-
-### Choice 2: Install with pip
-
-You can also install `mlorax` with pip. This is the recommended way to use `mlorax` if you want to receive future updates.
+You can install `mlorax` with pip. This is the recommended way to use `mlorax` if you want to receive future updates.
 
 ```bash
 pip install mlorax
 ```
+
+### Choice 2: Just copy the code
+
+You can also directly copy the code from `mlorax.py` and paste it into your project. This is the easiest way to use `mlorax` if you do not care about future updates.
 
 ### Choice 3: Install from source
 
@@ -49,7 +49,7 @@ Always use the **returned** `apply_fn` for model forwarding if possible. Otherwi
 
 ## Example and Results
 
-Please refer to the [examples](https://github.com/yongchanghao/MLoRAx/tree/main/examples) folder for more examples and results.
+Please refer to the [examples](https://github.com/yongchanghao/MLoRAx/tree/main/examples) folder for details.
 
 ## Citation
 

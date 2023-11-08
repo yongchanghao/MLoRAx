@@ -1,0 +1,36 @@
+training:
+  label_smoothing_factor: 0.0
+  per_device_batch_size: 4
+  output_dir: outputs/${now:%Y-%m-%d_%H-%M-%S}
+  max_grad_norm: 1.0
+  num_train_epochs: 1
+  warmup_steps: 0
+  logging_steps: 1
+  save_steps: 100000
+  eval_steps: 5000
+  seed: 42
+model:
+  model_name_or_path: t5-small
+  dtype: float32
+data:
+  max_source_length: 512
+  max_target_length: 64
+  predict_with_generate: true
+  dataset_name: xsum
+optimizer:
+  learning_rate: 1e-3
+  weight_decay: 0.0
+lora:
+  rank: 8
+  rules:
+    - "Attention.o"
+    - "Attention.q"
+    - "Attention.v"
+    - "Attention.k"
+  alpha: null
+  tune_vectors: false
+  disabled: false
+hydra:
+  output_subdir: outputs/${now:%Y-%m-%d_%H-%M-%S}
+  run:
+    dir: .
