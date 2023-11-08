@@ -27,6 +27,15 @@ LORA_SIGNATURE = PATH_SEP + "$lora$"
 LORA_A_SUFFIX = LORA_SIGNATURE + PATH_SEP + "a"
 LORA_B_SUFFIX = LORA_SIGNATURE + PATH_SEP + "b"
 
+RNG_KEYWORDS = [
+    "dropout_rng",
+    "dropout_prng",
+    "dropout_key",
+    "rng",
+    "prng",
+    "key",
+]
+
 
 class WeightState(Enum):
     FREEZED = 0
@@ -39,12 +48,13 @@ class LoRASpec:
     rank: int
     rules: Iterable[str]
     alpha: Optional[float] = None  # default to rank
+    dropout: float = 0.0
     tune_vectors: bool = False
     seed: int = 0
     disabled: bool = False
 
 
-def decision_fn(
+def _decision_fn(
     lora_spec: LoRASpec,
     name: str,
     param: chex.ArrayTree,
@@ -73,10 +83,11 @@ def decision_fn(
     return WeightState.FREEZED
 
 
-def lora_merge(
+def _lora_merge(
     lora_spec: LoRASpec,
     trainable: flax.core.FrozenDict,
     freezed: flax.core.FrozenDict,
+    rng: Optional[chex.PRNGKey] = None,
 ):
     """
     Merge trainable and freezed parameters into a full parameter set.
@@ -95,8 +106,19 @@ def lora_merge(
             # WeightState.FACTORIZED
             trainable_paths.add(path.split(LORA_SIGNATURE)[0])
 
+    use_dropout = lora_spec.dropout > 0.0 and rng is not None
+    keep_prob = 1 - lora_spec.dropout
+
     for path in trainable_paths:
         a = trainable[f"{path}{LORA_A_SUFFIX}"]
+        if use_dropout:
+            # math:
+            #   dot(x * mask / (1-p), a)
+            # = dot(x, diag(mask), a) / (1-p)
+            # = dot(x, mask' * a / (1-p)), where mask'.shape = (n, 1)
+            rng = jax.random.split(rng)[0]
+            mask = jax.random.bernoulli(rng, p=keep_prob, shape=(a.shape[0], 1))
+            a = mask * a / keep_prob
         b = trainable[f"{path}{LORA_B_SUFFIX}"]
         rank = a.shape[1]
         full_params[path] = jnp.matmul(a, b) * alpha / rank + freezed[path]
@@ -125,44 +147,77 @@ def lora_init(
         return params, apply_fn, lambda params: params
 
     rank = lora_spec.rank
-    rng = jax.random.PRNGKey(lora_spec.seed)
+    init_rng = jax.random.PRNGKey(lora_spec.seed)
 
     trainable = {}
     freezed = {}
     for path, weight in flax.traverse_util.flatten_dict(
         params, sep=PATH_SEP
     ).items():
-        weight_state = decision_fn(lora_spec, path, weight)
+        weight_state = _decision_fn(lora_spec, path, weight)
         if weight_state == WeightState.FULL:
             trainable[path] = weight
         elif weight_state == WeightState.FREEZED:
             freezed[path] = weight
         elif weight_state == WeightState.FACTORIZED:
             trainable[f"{path}{LORA_A_SUFFIX}"] = jax.random.normal(
-                rng, (weight.shape[0], rank), dtype=weight.dtype
+                init_rng, (weight.shape[0], rank), dtype=weight.dtype
             ) / jnp.sqrt(weight.shape[0] / 2)
             trainable[f"{path}{LORA_B_SUFFIX}"] = jnp.zeros(
                 (rank, weight.shape[1]), dtype=weight.dtype
             )
             freezed[path] = weight
-            rng = jax.random.split(rng)[0]
+            init_rng = jax.random.split(init_rng)[0]
         else:
             raise ValueError(f"Unknown weight state: {weight_state}")
 
     trainable = flax.traverse_util.unflatten_dict(trainable, sep=PATH_SEP)
 
-    def wrapped_apply_fn(params, *args, **kwargs):
+    def wrapped_apply_fn(
+        params,
+        lora_rng=None,
+        lora_rng_detection=True,
+        *args,
+        **kwargs,
+    ):
+        """
+        Apply the model with trainable parameters.
+        Dropout is applied if
+            - lora_rng is not None, or
+            - kwargs[kw] is detected for kw in RNG_KEYWORDS
+              when lora_rng_detection=True (default).
+        """
+
+        if lora_rng is None and lora_rng_detection:
+            for kw in RNG_KEYWORDS:
+                if isinstance(kwargs.get(kw, None), chex.PRNGKey):
+                    lora_rng = jax.random.split(kwargs[kw])[0]
+                    break
+
         return apply_fn(
-            params=lora_merge(
-                lora_spec=lora_spec, trainable=params, freezed=freezed
+            params=_lora_merge(
+                lora_spec=lora_spec,
+                trainable=params,
+                freezed=freezed,
+                rng=lora_rng,
             ),
             *args,
             **kwargs,
         )
 
-    def wrapped_merge_fn(params):
-        return lora_merge(
-            lora_spec=lora_spec, trainable=params, freezed=freezed
+    def wrapped_merge_fn(
+        params,
+        lora_rng=None,
+    ):
+        """
+        Merge trainable and freezed parameters into a full parameter set.
+        Dropout is applied if lora_rng is not None.
+        """
+        return _lora_merge(
+            lora_spec=lora_spec,
+            trainable=params,
+            freezed=freezed,
+            rng=lora_rng,
         )
 
     return trainable, wrapped_apply_fn, wrapped_merge_fn

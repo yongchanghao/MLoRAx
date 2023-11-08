@@ -61,6 +61,6 @@ If you find MLoRAx useful, please cite the following paper:
   title = {{ML}o{RA}x: a minimalist library for low-rank adaptation for {T}ransformer-based models},
   year = {2023},
   url = {https://github.com/yongchanghao/MLoRAx},
-  version = {0.9.1}
+  version = {0.9.2}
 }
 ```

@@ -7,7 +7,7 @@ long_description = (this_directory / "README.md").read_text()
 
 setup(
     name="mlorax",
-    version="0.9.1",
+    version="0.9.2",
     description="MLoRAx is a minimalist library for low-rank adaptation designd to effortlessly enable parameter-efficient training for Transformer-based models.",  # noqa: E501
     long_description=long_description,
     long_description_content_type="text/markdown",
