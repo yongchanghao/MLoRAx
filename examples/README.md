@@ -32,6 +32,7 @@ lora:
   alpha: null
   tune_vectors: false
   disabled: false
+  dropout: 0.0
 ```
 
 This is specifically for HuggingFace's T5 models. For other models, you may need to change the rules.
@@ -48,6 +49,7 @@ In `train.py`, you can see the following code:
 +     tune_vectors=args.lora.tune_vectors,
 +     seed=args.training.seed,
 +     disabled=args.lora.disabled,
++     dropout=args.lora.dropout,
 + )
 + trainable, apply_fn, merge_fn = lora_init(lora_spec, model)
   state = TrainState.create(

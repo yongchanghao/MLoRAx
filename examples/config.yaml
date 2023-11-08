@@ -30,6 +30,7 @@ lora:
   alpha: null
   tune_vectors: false
   disabled: false
+  dropout: 0.0
 hydra:
   output_subdir: outputs/${now:%Y-%m-%d_%H-%M-%S}
   run:

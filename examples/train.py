@@ -393,6 +393,7 @@ def main(args):
         tune_vectors=args.lora.tune_vectors,
         seed=args.training.seed,
         disabled=args.lora.disabled,
+        dropout=args.lora.dropout,
     )
     trainable, apply_fn, merge_fn = lora_init(lora_spec, model)
     state = TrainState.create(
