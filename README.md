@@ -56,11 +56,11 @@ Please refer to the [examples](https://github.com/yongchanghao/MLoRAx/tree/main/
 If you find MLoRAx useful, please cite the following paper:
 
 ```bibtex
-@software{hao2023mlorax,
+@software{hao2023lmrax,
   author = {Yongchang Hao},
-  title = {{ML}o{RA}x: a minimalist library for low-rank adaptation for {T}ransformer-based models},
+  title = {{T}he {LMR}ax {E}cosystem: a minimalist library for training {T}ransformer models with {JAX}},
   year = {2023},
-  url = {https://github.com/yongchanghao/MLoRAx},
-  version = {0.9.2}
+  url = {https://github.com/yongchanghao/LMRax},
+  version = {0.9.3}
 }
 ```

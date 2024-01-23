@@ -3,7 +3,7 @@ message: "If you find this software useful, please cite it as below."
 authors:
   - family-names: "Yongchang"
     given-names: "Hao"
-title: "MLoRAx: a minimalist library for low-rank adaptation for Transformer-based models"
-version: 0.9.2
+title: "The LMRax Ecosystem: a minimalist library for training Transformer models with JAX"
+version: 0.9.3
 date-released: 2023-11-07
 url: "https://github.com/yongchanghao/MLoRAx"

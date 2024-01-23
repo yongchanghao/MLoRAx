@@ -50,6 +50,7 @@ class LoRASpec:
     alpha: Optional[float] = None  # default to rank
     dropout: float = 0.0
     tune_vectors: bool = False
+    tune_others: bool = False
     seed: int = 0
     disabled: bool = False
 
@@ -62,13 +63,16 @@ def _decision_fn(
     """
     Decision function to determine the weight state of a parameter.
     """
+
+    default = WeightState.FULL if lora_spec.tune_others else WeightState.FREEZED
+
     # check if the parameter is floating
     if not jnp.issubdtype(param.dtype, jnp.floating):
         return WeightState.FREEZED
 
     # check if the parameter is a high-rank tensor
     if param.ndim > 2:
-        return WeightState.FREEZED
+        return default
 
     # check if the parameter is a vector
     if lora_spec.tune_vectors and param.ndim <= 1:
@@ -79,8 +83,8 @@ def _decision_fn(
         if rule in name:
             return WeightState.FACTORIZED
 
-    # otherwise, freeze the parameter
-    return WeightState.FREEZED
+    # otherwise, return the default
+    return default
 
 
 def _lora_merge(
@@ -151,9 +155,7 @@ def lora_init(
 
     trainable = {}
     freezed = {}
-    for path, weight in flax.traverse_util.flatten_dict(
-        params, sep=PATH_SEP
-    ).items():
+    for path, weight in flax.traverse_util.flatten_dict(params, sep=PATH_SEP).items():
         weight_state = _decision_fn(lora_spec, path, weight)
         if weight_state == WeightState.FULL:
             trainable[path] = weight
@@ -163,9 +165,7 @@ def lora_init(
             trainable[f"{path}{LORA_A_SUFFIX}"] = jax.random.normal(
                 init_rng, (weight.shape[0], rank), dtype=weight.dtype
             ) / jnp.sqrt(weight.shape[0] / 2)
-            trainable[f"{path}{LORA_B_SUFFIX}"] = jnp.zeros(
-                (rank, weight.shape[1]), dtype=weight.dtype
-            )
+            trainable[f"{path}{LORA_B_SUFFIX}"] = jnp.zeros((rank, weight.shape[1]), dtype=weight.dtype)
             freezed[path] = weight
             init_rng = jax.random.split(init_rng)[0]
         else:
