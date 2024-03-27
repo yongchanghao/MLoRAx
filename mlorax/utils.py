@@ -16,6 +16,8 @@
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Iterable, Optional
+import logging
+import inspect
 
 import chex
 import flax
@@ -53,6 +55,7 @@ class LoRASpec:
     tune_others: bool = False
     seed: int = 0
     disabled: bool = False
+    logger_level: str = "INFO"
 
 
 def _decision_fn(
@@ -142,36 +145,45 @@ def lora_init(
     where apply_fn: (trainable_params, *args, **kwargs) -> model_output
     and merge_fn: (trainable_params) -> full_params after merging.
     """
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.getLevelName(lora_spec.logger_level))
+
     if params is None:
         params = model.params
     if apply_fn is None:
         apply_fn = model.__call__
 
     if lora_spec.disabled:
-        return params, apply_fn, lambda params: params
+        logger.info("LoRA is disabled.")
+        trainable = params
+        freezed = {}
+    else:
+        trainable = {}
+        freezed = {}
+        logger.info("Initializing LoRA...")
+        rank = lora_spec.rank
+        init_rng = jax.random.PRNGKey(lora_spec.seed)
 
-    rank = lora_spec.rank
-    init_rng = jax.random.PRNGKey(lora_spec.seed)
+        for path, weight in flax.traverse_util.flatten_dict(params, sep=PATH_SEP).items():
+            weight_state = _decision_fn(lora_spec, path, weight)
+            if weight_state == WeightState.FULL:
+                logger.debug(f"Full: {path}({weight.dtype})={weight.shape}")
+                trainable[path] = weight
+            elif weight_state == WeightState.FREEZED:
+                logger.debug(f"Freezed: {path}({weight.dtype})={weight.shape}")
+                freezed[path] = weight
+            elif weight_state == WeightState.FACTORIZED:
+                logger.debug(f"Factorized: {path}({weight.dtype})={weight.shape}")
+                trainable[f"{path}{LORA_A_SUFFIX}"] = jax.random.normal(
+                    init_rng, (weight.shape[0], rank), dtype=weight.dtype
+                ) / jnp.sqrt(weight.shape[0] / 2)
+                trainable[f"{path}{LORA_B_SUFFIX}"] = jnp.zeros((rank, weight.shape[1]), dtype=weight.dtype)
+                freezed[path] = weight
+                init_rng = jax.random.split(init_rng)[0]
+            else:
+                raise ValueError(f"Unknown weight state: {weight_state}")
 
-    trainable = {}
-    freezed = {}
-    for path, weight in flax.traverse_util.flatten_dict(params, sep=PATH_SEP).items():
-        weight_state = _decision_fn(lora_spec, path, weight)
-        if weight_state == WeightState.FULL:
-            trainable[path] = weight
-        elif weight_state == WeightState.FREEZED:
-            freezed[path] = weight
-        elif weight_state == WeightState.FACTORIZED:
-            trainable[f"{path}{LORA_A_SUFFIX}"] = jax.random.normal(
-                init_rng, (weight.shape[0], rank), dtype=weight.dtype
-            ) / jnp.sqrt(weight.shape[0] / 2)
-            trainable[f"{path}{LORA_B_SUFFIX}"] = jnp.zeros((rank, weight.shape[1]), dtype=weight.dtype)
-            freezed[path] = weight
-            init_rng = jax.random.split(init_rng)[0]
-        else:
-            raise ValueError(f"Unknown weight state: {weight_state}")
-
-    trainable = flax.traverse_util.unflatten_dict(trainable, sep=PATH_SEP)
+        trainable = flax.traverse_util.unflatten_dict(trainable, sep=PATH_SEP)
 
     def wrapped_apply_fn(
         params,
@@ -188,11 +200,19 @@ def lora_init(
               when lora_rng_detection=True (default).
         """
 
+        if "train" not in inspect.signature(apply_fn).parameters:
+            if kwargs.get("train", None) is not None:
+                kwargs["deterministic"] = not kwargs["train"]
+                del kwargs["train"]
+
         if lora_rng is None and lora_rng_detection:
             for kw in RNG_KEYWORDS:
                 if isinstance(kwargs.get(kw, None), chex.PRNGKey):
                     lora_rng = jax.random.split(kwargs[kw])[0]
                     break
+
+        if lora_spec.disabled:
+            return apply_fn(params=params, *args, **kwargs)
 
         return apply_fn(
             params=_lora_merge(

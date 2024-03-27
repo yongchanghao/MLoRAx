@@ -61,6 +61,6 @@ If you find MLoRAx useful, please cite the following paper:
   title = {{T}he {LMR}ax {E}cosystem: a minimalist library for training {T}ransformer models with {JAX}},
   year = {2023},
   url = {https://github.com/yongchanghao/LMRax},
-  version = {0.9.3}
+  version = {0.9.5}
 }
 ```

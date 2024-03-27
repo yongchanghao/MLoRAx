@@ -4,6 +4,5 @@ authors:
   - family-names: "Yongchang"
     given-names: "Hao"
 title: "The LMRax Ecosystem: a minimalist library for training Transformer models with JAX"
-version: 0.9.3
 date-released: 2023-11-07
 url: "https://github.com/yongchanghao/MLoRAx"
